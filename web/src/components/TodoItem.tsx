@@ -1,4 +1,5 @@
 import type { Todo, TodoList } from "../lib/types.js";
+import { Icon } from "./Icon.js";
 
 const PRIORITY_LABEL = { none: "", low: "低", medium: "中", high: "高" } as const;
 
@@ -19,10 +20,14 @@ export function TodoItem({ todo, lists, onComplete, onRestore, onEdit, onSnooze 
   onComplete: (todo: Todo) => void;
   onRestore: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
-  onSnooze: (todo: Todo) => void;
+  onSnooze: (todo: Todo, minutes: number) => void;
 }) {
   const list = lists.find((item) => item.id === todo.listId);
   const overdue = Boolean(todo.dueAtUtc && todo.status === "open" && new Date(todo.dueAtUtc).getTime() < Date.now());
+  const tomorrowMorning = new Date();
+  tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+  tomorrowMorning.setHours(9, 0, 0, 0);
+  const untilTomorrowMorning = Math.max(1, Math.ceil((tomorrowMorning.getTime() - Date.now()) / 60_000));
   return (
     <article className={`todo-card priority-${todo.priority} ${todo.status === "completed" ? "is-complete" : ""}`}>
       <button
@@ -41,16 +46,24 @@ export function TodoItem({ todo, lists, onComplete, onRestore, onEdit, onSnooze 
         {todo.notes && <p>{todo.notes}</p>}
         <div className="todo-meta">
           <span className="display-id">{todo.displayId}</span>
-          {todo.dueAtUtc && <span className={overdue ? "due overdue" : "due"}>{overdue ? "已逾期 · " : ""}{dueLabel(todo.dueAtUtc)}</span>}
-          {todo.recurrenceRule && <span>↻ 重复</span>}
+          {todo.dueAtUtc && <span className={overdue ? "due overdue" : "due"}><Icon name={overdue ? "alert" : "clock"} />{overdue ? "已逾期 · " : ""}{dueLabel(todo.dueAtUtc)}</span>}
+          {todo.reminderAtUtc && todo.reminderAtUtc !== todo.dueAtUtc && <span><Icon name="bell" />提醒 {dueLabel(todo.reminderAtUtc)}</span>}
+          {todo.recurrenceRule && <span><Icon name="repeat" />重复</span>}
           {list && <span className="list-chip"><i style={{ background: list.color }} />{list.name}</span>}
         </div>
       </div>
       <div className="todo-actions">
-        {todo.status === "open" && todo.reminderAtUtc && (
-          <button title="10 分钟后提醒" onClick={() => onSnooze(todo)} type="button">稍后</button>
+        {todo.status === "open" && (todo.reminderAtUtc || todo.dueAtUtc) && (
+          <details className="snooze-menu">
+            <summary title="稍后提醒"><Icon name="snooze" />稍后</summary>
+            <div className="snooze-options">
+              <button onClick={() => onSnooze(todo, 10)} type="button">10 分钟后</button>
+              <button onClick={() => onSnooze(todo, 60)} type="button">1 小时后</button>
+              <button onClick={() => onSnooze(todo, untilTomorrowMorning)} type="button">明早 9 点</button>
+            </div>
+          </details>
         )}
-        <button title="编辑待办" onClick={() => onEdit(todo)} type="button">编辑</button>
+        <button title="编辑待办" onClick={() => onEdit(todo)} type="button"><Icon name="edit" />编辑</button>
       </div>
     </article>
   );

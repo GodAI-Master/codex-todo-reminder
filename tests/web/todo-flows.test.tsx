@@ -33,11 +33,12 @@ describe("todo item flows", () => {
     render(<TodoItem todo={todo} lists={[]} onComplete={onComplete} onRestore={vi.fn()} onSnooze={onSnooze} onEdit={onEdit} />);
 
     await user.click(screen.getByRole("button", { name: `完成 ${todo.title}` }));
-    await user.click(screen.getByRole("button", { name: "稍后" }));
+    await user.click(screen.getByText("稍后"));
+    await user.click(screen.getByRole("button", { name: "10 分钟后" }));
     await user.click(screen.getByRole("button", { name: "编辑" }));
 
     expect(onComplete).toHaveBeenCalledWith(todo);
-    expect(onSnooze).toHaveBeenCalledWith(todo);
+    expect(onSnooze).toHaveBeenCalledWith(todo, 10);
     expect(onEdit).toHaveBeenCalledWith(todo);
   });
 });

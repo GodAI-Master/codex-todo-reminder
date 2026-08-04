@@ -13,6 +13,8 @@ type SchedulerOptions = {
   intervalMs?: number;
   retryDelayMs?: number;
   missedWindowMinutes?: number;
+  maxMissedNotificationsPerScan?: number;
+  maxDeliveryAttempts?: number;
 };
 
 type DueRow = {
@@ -25,6 +27,7 @@ type DueRow = {
   completed_at_utc: string | null;
   snoozed_until_utc: string | null;
   effective_reminder_at_utc: string;
+  attempts: number;
 };
 
 export class ReminderScheduler {
@@ -34,12 +37,16 @@ export class ReminderScheduler {
   private readonly intervalMs: number;
   private readonly retryDelayMs: number;
   private readonly missedWindowMinutes: number;
+  private readonly maxMissedNotificationsPerScan: number;
+  private readonly maxDeliveryAttempts: number;
 
   constructor(private readonly options: SchedulerOptions) {
     this.now = options.now ?? (() => new Date());
     this.intervalMs = options.intervalMs ?? 15_000;
     this.retryDelayMs = options.retryDelayMs ?? 60_000;
-    this.missedWindowMinutes = options.missedWindowMinutes ?? 24 * 60;
+    this.missedWindowMinutes = options.missedWindowMinutes ?? 6 * 60;
+    this.maxMissedNotificationsPerScan = options.maxMissedNotificationsPerScan ?? 3;
+    this.maxDeliveryAttempts = options.maxDeliveryAttempts ?? 3;
   }
 
   start(): void {
@@ -69,14 +76,29 @@ export class ReminderScheduler {
       const due = this.options.database.prepare(`
         SELECT id, todo_id, scheduled_at_utc, reminder_at_utc, state,
                delivered_at_utc, completed_at_utc, snoozed_until_utc,
-               COALESCE(snoozed_until_utc, reminder_at_utc, scheduled_at_utc) AS effective_reminder_at_utc
+               COALESCE(snoozed_until_utc, reminder_at_utc, scheduled_at_utc) AS effective_reminder_at_utc,
+               COALESCE((SELECT SUM(attempts) FROM notification_deliveries
+                 WHERE occurrence_id = occurrences.id), 0) AS attempts
         FROM occurrences
         WHERE state IN ('scheduled', 'snoozed')
           AND COALESCE(snoozed_until_utc, reminder_at_utc, scheduled_at_utc) <= ?
         ORDER BY effective_reminder_at_utc
-        LIMIT 50
       `).all(nowIso) as DueRow[];
-      for (const row of due) await this.deliver(row, now);
+      const eligible = due.filter((row) => {
+        if (shouldDeliverMissedReminder(new Date(row.effective_reminder_at_utc), now, this.missedWindowMinutes)) return true;
+        this.skip(row.id, nowIso);
+        return false;
+      });
+      const missed = eligible.filter((row) => now.getTime() - new Date(row.effective_reminder_at_utc).getTime() > 60_000);
+      const missedIds = new Set(missed.map((row) => row.id));
+      const keepMissed = new Set(missed.slice(-this.maxMissedNotificationsPerScan).map((row) => row.id));
+      for (const row of eligible) {
+        if (missedIds.has(row.id) && !keepMissed.has(row.id)) {
+          this.skip(row.id, nowIso);
+          continue;
+        }
+        await this.deliver(row, now);
+      }
     } finally {
       this.running = false;
     }
@@ -84,11 +106,6 @@ export class ReminderScheduler {
 
   private async deliver(row: DueRow, now: Date): Promise<void> {
     const scheduled = new Date(row.effective_reminder_at_utc);
-    if (!shouldDeliverMissedReminder(scheduled, now, this.missedWindowMinutes)) {
-      this.options.database.prepare("UPDATE occurrences SET state = 'skipped', updated_at_utc = ? WHERE id = ?")
-        .run(now.toISOString(), row.id);
-      return;
-    }
     const claimToken = randomUUID();
     const claimed = this.options.database.prepare(`
       UPDATE occurrences
@@ -97,6 +114,11 @@ export class ReminderScheduler {
     `).run(claimToken, now.toISOString(), now.toISOString(), row.id);
     if (Number(claimed.changes) !== 1) return;
 
+    const todo = new TodoRepository(this.options.database).get(row.todo_id);
+    if (!todo) {
+      this.skip(row.id, now.toISOString());
+      return;
+    }
     const deliveryId = randomUUID();
     this.options.database.prepare(`
       INSERT INTO notification_deliveries(
@@ -106,8 +128,6 @@ export class ReminderScheduler {
         status = 'pending', attempts = attempts + 1, error_message = NULL, updated_at_utc = excluded.updated_at_utc
     `).run(deliveryId, row.id, row.effective_reminder_at_utc, now.toISOString(), now.toISOString());
 
-    const todo = new TodoRepository(this.options.database).get(row.todo_id);
-    if (!todo) return;
     const occurrence: Occurrence = {
       id: row.id,
       todoId: row.todo_id,
@@ -132,18 +152,32 @@ export class ReminderScheduler {
         WHERE occurrence_id = ? AND scheduled_at_utc = ?
       `).run(deliveredAt, deliveredAt, row.id, row.effective_reminder_at_utc);
     } catch (error) {
-      const retryAt = new Date(this.now().getTime() + this.retryDelayMs).toISOString();
-      this.options.database.prepare(`
-        UPDATE occurrences
-        SET state = 'scheduled', reminder_at_utc = ?, snoozed_until_utc = NULL,
-            claim_token = NULL, claimed_at_utc = NULL, updated_at_utc = ?
-        WHERE id = ? AND claim_token = ?
-      `).run(retryAt, this.now().toISOString(), row.id, claimToken);
+      const failedAt = this.now();
+      const exhausted = row.attempts + 1 >= this.maxDeliveryAttempts;
+      if (exhausted) {
+        this.skip(row.id, failedAt.toISOString());
+      } else {
+        const retryAt = new Date(failedAt.getTime() + this.retryDelayMs).toISOString();
+        this.options.database.prepare(`
+          UPDATE occurrences
+          SET state = 'scheduled', reminder_at_utc = ?, snoozed_until_utc = NULL,
+              claim_token = NULL, claimed_at_utc = NULL, updated_at_utc = ?
+          WHERE id = ? AND claim_token = ?
+        `).run(retryAt, failedAt.toISOString(), row.id, claimToken);
+      }
       this.options.database.prepare(`
         UPDATE notification_deliveries
         SET status = 'failed', error_message = ?, updated_at_utc = ?
         WHERE occurrence_id = ? AND scheduled_at_utc = ?
       `).run(error instanceof Error ? error.message : "notification failed", this.now().toISOString(), row.id, row.effective_reminder_at_utc);
     }
+  }
+
+  private skip(id: string, at: string): void {
+    this.options.database.prepare(`
+      UPDATE occurrences
+      SET state = 'skipped', claim_token = NULL, claimed_at_utc = NULL, updated_at_utc = ?
+      WHERE id = ?
+    `).run(at, id);
   }
 }

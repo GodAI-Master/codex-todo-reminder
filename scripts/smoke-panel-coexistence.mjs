@@ -26,6 +26,8 @@ try {
       pageHidden: panel?.hidden ?? null,
       framePresent: Boolean(frame),
       frameHidden: frame?.hidden ?? null,
+      visibility: panel ? getComputedStyle(panel).visibility : null,
+      taskboardMask: panel?.getAttribute("data-codex-taskboard-native-hidden") ?? null,
       ariaCurrent: entry?.getAttribute("aria-current") ?? null,
     };
   }, { pageId, frameId, entryId });
@@ -41,13 +43,15 @@ try {
   const todoFrameHandle = await page.locator("#codex-todo-reminder-frame").elementHandle();
   const todoContentFrame = await todoFrameHandle?.contentFrame();
   const todoContent = todoContentFrame ? {
-    url: todoContentFrame.url().replace(/#.*$/, "#token=hidden"),
+    url: String(await todoContentFrame.evaluate(() => location.href).catch(() => todoContentFrame.url())).replace(/#.*$/, "#token=hidden"),
     title: await todoContentFrame.title().catch(() => ""),
     bodyText: (await todoContentFrame.locator("body").innerText().catch(() => "")).slice(0, 240),
   } : null;
   const taskboardAfterTodo = await panelState("codex-taskboard-page", "codex-taskboard-frame", "codex-taskboard-entry");
+  const taskboardRootOpen = await page.evaluate(() => document.documentElement.hasAttribute("data-codex-taskboard-open"));
   const todoOpened = todoState.open;
-  const taskboardClosed = !taskboardAfterTodo.open;
+  const taskboardClosed = !taskboardAfterTodo.open && taskboardAfterTodo.pageHidden === true && !taskboardRootOpen;
+  const todoVisible = todoState.visibility === "visible" && todoState.taskboardMask === null;
 
   await taskboardEntry.click();
   await page.waitForTimeout(350);
@@ -55,16 +59,35 @@ try {
   const todoAfterTaskboard = await panelState("codex-todo-reminder-page", "codex-todo-reminder-frame", "codex-todo-reminder-entry");
   const taskboardReopened = finalTaskboardState.open;
   const todoClosed = !todoAfterTaskboard.open;
+  const switchCycles = [];
+  for (let index = 0; index < 6; index += 1) {
+    await todoEntry.click();
+    await page.waitForTimeout(220);
+    const currentTodo = await panelState("codex-todo-reminder-page", "codex-todo-reminder-frame", "codex-todo-reminder-entry");
+    const currentTaskboard = await panelState("codex-taskboard-page", "codex-taskboard-frame", "codex-taskboard-entry");
+    const rootOpen = await page.evaluate(() => document.documentElement.hasAttribute("data-codex-taskboard-open"));
+    const todoOk = currentTodo.open && currentTodo.visibility === "visible" && currentTodo.taskboardMask === null
+      && currentTaskboard.pageHidden === true && !rootOpen;
+    await taskboardEntry.click();
+    await page.waitForTimeout(220);
+    const reopenedTaskboard = await panelState("codex-taskboard-page", "codex-taskboard-frame", "codex-taskboard-entry");
+    const cycleOk = todoOk && reopenedTaskboard.open;
+    switchCycles.push({ cycle: index + 1, ok: cycleOk });
+  }
+  const switchingStable = switchCycles.every((cycle) => cycle.ok);
 
   const report = {
-    ok: taskboardOpened && todoOpened && taskboardClosed && taskboardReopened && todoClosed
+    ok: taskboardOpened && todoOpened && todoVisible && taskboardClosed && taskboardReopened && todoClosed && switchingStable
       && Boolean(todoContent?.url.startsWith("http://127.0.0.1:47831/panel/"))
       && !todoContent?.bodyText.includes("该内容被屏蔽了"),
     taskboardOpened,
     todoOpened,
+    todoVisible,
     taskboardClosed,
     taskboardReopened,
     todoClosed,
+    switchingStable,
+    switchCycles,
     todoState,
     todoContent,
     firstTaskboardState,

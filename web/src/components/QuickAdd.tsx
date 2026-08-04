@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 
 import type { TodoDraft, TodoList, TodoPriority } from "../lib/types.js";
+import { Icon } from "./Icon.js";
 
 export function QuickAdd({ lists, onAdd, busy }: {
   lists: TodoList[];
@@ -11,16 +12,19 @@ export function QuickAdd({ lists, onAdd, busy }: {
   const [dueAt, setDueAt] = useState("");
   const [priority, setPriority] = useState<TodoPriority>("none");
   const [listId, setListId] = useState("");
+  const [reminderOffset, setReminderOffset] = useState("0");
   const [expanded, setExpanded] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     const clean = title.trim();
     if (!clean) return;
+    const due = dueAt ? new Date(dueAt) : null;
+    const reminder = due ? new Date(due.getTime() - Number(reminderOffset) * 60_000) : null;
     await onAdd({
       title: clean,
       priority,
-      ...(dueAt ? { dueAt: new Date(dueAt).toISOString() } : {}),
+      ...(due && reminder ? { dueAt: due.toISOString(), reminderAt: reminder.toISOString() } : {}),
       ...(listId ? { listId } : {}),
     });
     setTitle("");
@@ -31,7 +35,7 @@ export function QuickAdd({ lists, onAdd, busy }: {
   return (
     <form className="quick-add" onSubmit={submit}>
       <div className="quick-main">
-        <span className="quick-plus" aria-hidden="true">＋</span>
+        <span className="quick-plus"><Icon name="plus" /></span>
         <input
           aria-label="快速新增待办"
           disabled={busy}
@@ -55,6 +59,15 @@ export function QuickAdd({ lists, onAdd, busy }: {
               <option value="low">低</option>
               <option value="medium">中</option>
               <option value="high">高</option>
+            </select>
+          </label>
+          <label>
+            <span>提醒</span>
+            <select disabled={!dueAt} value={reminderOffset} onChange={(event) => setReminderOffset(event.target.value)}>
+              <option value="0">到期时</option>
+              <option value="10">提前 10 分钟</option>
+              <option value="60">提前 1 小时</option>
+              <option value="1440">提前 1 天</option>
             </select>
           </label>
           <label>

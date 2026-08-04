@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import type { Todo, TodoDraft, TodoList, TodoPriority } from "../lib/types.js";
+import { Icon } from "./Icon.js";
 
 function toLocalInput(value: string | null): string {
   if (!value) return "";
@@ -67,7 +68,7 @@ export function TodoEditor({ todo, lists, onClose, onSave, onDelete }: {
       <section className="editor-panel" role="dialog" aria-modal="true" aria-label="编辑待办">
         <header>
           <div><small>{todo.displayId}</small><h2>整理这件事</h2></div>
-          <button className="icon-button" onClick={onClose} type="button" aria-label="关闭">×</button>
+          <button className="icon-button" onClick={onClose} type="button" aria-label="关闭"><Icon name="close" /></button>
         </header>
         <form onSubmit={submit}>
           <label className="field wide"><span>标题</span><input required maxLength={300} value={title} onChange={(event) => setTitle(event.target.value)} /></label>

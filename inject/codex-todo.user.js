@@ -1,8 +1,9 @@
 (() => {
   "use strict";
-  const VERSION = "0.1.2";
+  const VERSION = "0.1.3";
   const SOURCE_HASH = String(window.__CODEX_TODO_SOURCE_HASH__ || VERSION);
   const SENTINEL = "__CODEX_TODO_PANEL__";
+  const TASKBOARD_SENTINEL = "__codexTaskboardInjection__";
   const ENTRY_ID = "codex-todo-reminder-entry";
   const TASKBOARD_ENTRY_ID = "codex-taskboard-entry";
   const PAGE_ID = "codex-todo-reminder-page";
@@ -221,6 +222,7 @@
   }
 
   function open() {
+    try { window[TASKBOARD_SENTINEL]?.close?.(false); } catch {}
     active = true;
     ensureEntry();
     mountPage();

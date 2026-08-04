@@ -8,15 +8,19 @@ export type ToastAction =
   | { action: "open" };
 
 type ToastSource = {
-  todo: Pick<ReminderNotification["todo"], "id" | "displayId" | "title">;
+  todo: Pick<ReminderNotification["todo"], "id" | "displayId" | "title" | "dueAtUtc">;
   occurrenceId: string;
   missed?: boolean;
 };
 
 export function buildToastOptions(source: ToastSource) {
+  const due = source.todo.dueAtUtc
+    ? new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(source.todo.dueAtUtc))
+    : "";
+  const context = source.missed ? "恢复后补发" : due ? `${due} 到期` : "现在提醒";
   return {
     title: `待办任务 · ${source.todo.displayId}`,
-    message: `${source.missed ? "错过提醒 · " : ""}${source.todo.title}`,
+    message: `${context} · ${source.todo.title}`,
     appID: "CodexTodoReminder",
     sound: true,
     wait: true,

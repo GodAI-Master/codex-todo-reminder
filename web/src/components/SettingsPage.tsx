@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "../lib/api.js";
 import type { BackupItem } from "../lib/types.js";
+import { Icon } from "./Icon.js";
 
 export function SettingsPage({ onChanged }: { onChanged: () => Promise<void> }) {
   const [backups, setBackups] = useState<BackupItem[]>([]);
@@ -45,27 +46,31 @@ export function SettingsPage({ onChanged }: { onChanged: () => Promise<void> }) 
 
   return (
     <section className="settings-page">
-      <div className="settings-card">
-        <div><h2>数据导出</h2><p>保存一份可迁移的 JSON 文件，可在另一台电脑上导入。</p></div>
-        <button className="secondary-button" disabled={busy} onClick={() => void run(async () => { download(await api.exportData()); return "导出文件已生成"; })}>导出全部待办</button>
+      <div className="settings-card reminder-policy-card">
+        <div className="settings-copy"><span className="settings-icon"><Icon name="bell" /></span><div><h2>智能提醒</h2><p>按设定时间提醒；恢复运行时最多补发最近 3 条，失败最多重试 3 次。</p></div></div>
+        <span className="policy-status"><i />正在守护</span>
       </div>
       <div className="settings-card">
-        <div><h2>数据导入</h2><p>先检查文件内容，确认后合并；已有记录不会被覆盖。</p></div>
+        <div className="settings-copy"><span className="settings-icon"><Icon name="download" /></span><div><h2>数据导出</h2><p>保存一份可迁移的 JSON 文件，可在另一台电脑上导入。</p></div></div>
+        <button className="secondary-button button-with-icon" disabled={busy} onClick={() => void run(async () => { download(await api.exportData()); return "导出文件已生成"; })}><Icon name="download" />导出全部待办</button>
+      </div>
+      <div className="settings-card">
+        <div className="settings-copy"><span className="settings-icon"><Icon name="upload" /></span><div><h2>数据导入</h2><p>先检查文件内容，确认后合并；已有记录不会被覆盖。</p></div></div>
         <input ref={input} hidden type="file" accept="application/json,.json" onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) void run(() => importFile(file));
           event.currentTarget.value = "";
         }} />
-        <button className="secondary-button" disabled={busy} onClick={() => input.current?.click()}>选择导入文件</button>
+        <button className="secondary-button button-with-icon" disabled={busy} onClick={() => input.current?.click()}><Icon name="upload" />选择导入文件</button>
       </div>
       <div className="settings-card backup-card">
         <div className="settings-card-header">
-          <div><h2>本机备份</h2><p>系统每天自动备份一次，并保留最近 14 份。</p></div>
-          <button className="primary-button" disabled={busy} onClick={() => void run(async () => {
+          <div className="settings-copy"><span className="settings-icon"><Icon name="backup" /></span><div><h2>本机备份</h2><p>系统每天自动备份一次，并保留最近 14 份。</p></div></div>
+          <button className="primary-button button-with-icon" disabled={busy} onClick={() => void run(async () => {
             const result = await api.createBackup();
             await refresh();
             return `备份已创建：${result.name}`;
-          })}>立即备份</button>
+          })}><Icon name="backup" />立即备份</button>
         </div>
         <div className="backup-list">
           {backups.length ? backups.map((item) => (

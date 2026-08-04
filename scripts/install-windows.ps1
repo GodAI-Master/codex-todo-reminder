@@ -6,6 +6,7 @@ $localRoot = Join-Path $env:LOCALAPPDATA "CodexTodoReminder"
 $backupRoot = Join-Path $localRoot "shortcut-backups"
 $supervisor = Join-Path $PSScriptRoot "codex-todo-supervisor-windows.ps1"
 $watchdog = Join-Path $PSScriptRoot "ensure-codex-todo-running.ps1"
+$silentWatchdog = Join-Path $PSScriptRoot "ensure-codex-todo-running.vbs"
 $launcher = Join-Path $PSScriptRoot "start-codex-todo-windows.ps1"
 $taskName = "CodexTodoReminderSupervisor"
 
@@ -25,10 +26,11 @@ New-Item -ItemType Directory -Force -Path (Join-Path $skillTarget "references") 
 Copy-Item -LiteralPath (Join-Path $projectRoot "skills\manage-todos\references\commands.md") -Destination (Join-Path $skillTarget "references\commands.md") -Force
 
 Write-Output "[4/6] Registering startup recovery..."
-$action = New-ScheduledTaskAction -Execute (Join-Path $PSHOME "powershell.exe") -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$watchdog`" -DebugPort $DebugPort" -WorkingDirectory $projectRoot
+$wscript = Join-Path ([System.Environment]::SystemDirectory) "wscript.exe"
+$action = New-ScheduledTaskAction -Execute $wscript -Argument "`"$silentWatchdog`" $DebugPort" -WorkingDirectory $projectRoot
 $watchdogTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 1) -StartWhenAvailable -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-$runCommand = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$watchdog`" -DebugPort $DebugPort"
+$runCommand = "`"$wscript`" `"$silentWatchdog`" $DebugPort"
 New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $taskName -PropertyType String -Value $runCommand -Force | Out-Null
 try {
   Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue

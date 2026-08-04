@@ -1,21 +1,22 @@
 import type { ViewId } from "../lib/types.js";
+import { Icon, type IconName } from "./Icon.js";
 
-type NavItem = { id: ViewId; label: string; mark: string };
+type NavItem = { id: ViewId; label: string; icon: IconName };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "inbox", label: "收集箱", mark: "□" },
-  { id: "today", label: "今天", mark: "今" },
-  { id: "upcoming", label: "即将到期", mark: "→" },
-  { id: "recurring", label: "重复任务", mark: "↻" },
-  { id: "completed", label: "已完成", mark: "✓" },
-  { id: "settings", label: "设置与备份", mark: "⚙" },
+  { id: "inbox", label: "收集箱", icon: "inbox" },
+  { id: "today", label: "今天", icon: "today" },
+  { id: "upcoming", label: "即将到期", icon: "upcoming" },
+  { id: "recurring", label: "重复任务", icon: "repeat" },
+  { id: "completed", label: "已完成", icon: "completed" },
+  { id: "settings", label: "设置与备份", icon: "settings" },
 ];
 
 export function Sidebar({ view, onChange }: { view: ViewId; onChange: (view: ViewId) => void }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <span className="brand-logo" aria-hidden="true">✓</span>
+        <span className="brand-logo"><Icon name="app" /></span>
         <strong>待办任务</strong>
       </div>
       <nav aria-label="待办视图">
@@ -26,7 +27,7 @@ export function Sidebar({ view, onChange }: { view: ViewId; onChange: (view: Vie
             onClick={() => onChange(item.id)}
             type="button"
           >
-            <span className="nav-mark" aria-hidden="true">{item.mark}</span>
+            <span className="nav-mark"><Icon name={item.icon} /></span>
             <span>{item.label}</span>
           </button>
         ))}

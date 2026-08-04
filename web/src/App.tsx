@@ -6,17 +6,18 @@ import { SettingsPage } from "./components/SettingsPage.js";
 import { StatusBanner } from "./components/StatusBanner.js";
 import { TodoEditor } from "./components/TodoEditor.js";
 import { TodoItem } from "./components/TodoItem.js";
+import { Icon, type IconName } from "./components/Icon.js";
 import { useConnectionStatus } from "./hooks/useConnectionStatus.js";
 import { api } from "./lib/api.js";
 import type { Todo, TodoDraft, TodoList, TodoPriority, ViewId } from "./lib/types.js";
 
-const VIEW_COPY: Record<ViewId, { eyebrow: string; title: string; empty: string }> = {
-  inbox: { eyebrow: "CAPTURE", title: "收集箱", empty: "这里很安静。先写下一件想做的事。" },
-  today: { eyebrow: "FOCUS", title: "今天", empty: "今天没有必须完成的事项。" },
-  upcoming: { eyebrow: "HORIZON", title: "即将到期", empty: "未来暂时没有安排。" },
-  recurring: { eyebrow: "RHYTHM", title: "重复任务", empty: "还没有建立固定节奏。" },
-  completed: { eyebrow: "ARCHIVE", title: "已完成", empty: "完成的事项会安静地留在这里。" },
-  settings: { eyebrow: "LOCAL DATA", title: "设置与备份", empty: "" },
+const VIEW_COPY: Record<ViewId, { eyebrow: string; title: string; empty: string; icon: IconName }> = {
+  inbox: { eyebrow: "CAPTURE", title: "收集箱", empty: "这里很安静。先写下一件想做的事。", icon: "inbox" },
+  today: { eyebrow: "FOCUS", title: "今天", empty: "今天没有必须完成的事项。", icon: "today" },
+  upcoming: { eyebrow: "HORIZON", title: "即将到期", empty: "未来暂时没有安排。", icon: "upcoming" },
+  recurring: { eyebrow: "RHYTHM", title: "重复任务", empty: "还没有建立固定节奏。", icon: "repeat" },
+  completed: { eyebrow: "ARCHIVE", title: "已完成", empty: "完成的事项会安静地留在这里。", icon: "completed" },
+  settings: { eyebrow: "LOCAL DATA", title: "设置与备份", empty: "", icon: "settings" },
 };
 
 export function App() {
@@ -70,13 +71,16 @@ export function App() {
       <main className="workspace">
         <StatusBanner status={connection} />
         <header className="page-header">
-          <div>
+          <div className="page-title-block">
+            <span className="page-title-icon"><Icon name={VIEW_COPY[view].icon} /></span>
+            <div>
             <span className="eyebrow">{VIEW_COPY[view].eyebrow}</span>
             <h1>{VIEW_COPY[view].title}</h1>
+            </div>
           </div>
           <div className="day-stats" aria-label="今日概览">
-            <div><strong>{todayItems.length}</strong><span>今日剩余</span></div>
-            <div className={overdue ? "stat-alert" : ""}><strong>{overdue}</strong><span>已经逾期</span></div>
+            <div><Icon name="today" /><strong>{todayItems.length}</strong><span>今日剩余</span></div>
+            <div className={overdue ? "stat-alert" : ""}><Icon name="alert" /><strong>{overdue}</strong><span>已经逾期</span></div>
           </div>
         </header>
 
@@ -84,7 +88,7 @@ export function App() {
         <QuickAdd lists={lists} busy={busy} onAdd={async (draft) => act(() => api.create(draft))} />
 
         <div className="toolbar">
-          <label className="search-box"><span aria-hidden="true">⌕</span><input aria-label="搜索待办" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题或备注" /></label>
+          <label className="search-box"><Icon name="search" /><input aria-label="搜索待办" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索标题或备注" /></label>
           <select aria-label="按优先级筛选" value={priority} onChange={(event) => setPriority(event.target.value as TodoPriority | "all")}>
             <option value="all">全部优先级</option><option value="high">高优先级</option><option value="medium">中优先级</option><option value="low">低优先级</option><option value="none">普通</option>
           </select>
@@ -103,11 +107,11 @@ export function App() {
                 onEdit={setEditing}
                 onComplete={(item) => void act(() => api.complete(item.id))}
                 onRestore={(item) => void act(() => api.restore(item.id))}
-                onSnooze={(item) => void act(() => api.snooze(item.id, 10))}
+                onSnooze={(item, minutes) => void act(() => api.snooze(item.id, minutes))}
               />
             </div>
           )) : (
-            <div className="empty-state"><span aria-hidden="true">○</span><h2>此刻无事</h2><p>{VIEW_COPY[view].empty}</p></div>
+            <div className="empty-state"><span><Icon name="empty" /></span><h2>此刻无事</h2><p>{VIEW_COPY[view].empty}</p></div>
           )}
         </section>
         </>}
