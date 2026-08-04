@@ -1,6 +1,6 @@
 {
   "name": "codex-todo-reminder",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standalone local todo reminders embedded in Codex Desktop",
   "type": "module",
   "private": false,
@@ -31,6 +31,7 @@
     "check": "npm run typecheck && npm test && npm run build",
     "todoctl": "node scripts/todoctl.mjs",
     "codex:inject": "node scripts/codex-injector.mjs --watch",
+    "smoke:coexistence": "node scripts/diagnose-sidebar-stability.mjs --port 9231 --duration 5000 && node scripts/smoke-panel-coexistence.mjs --port 9231",
     "install:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-windows.ps1",
     "uninstall:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/uninstall-windows.ps1"
   },

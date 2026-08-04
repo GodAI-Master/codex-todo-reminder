@@ -82,7 +82,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get("/health", async () => ({
     ok: true,
     service: "codex-todo-reminder",
-    version: "0.1.0",
+    version: "0.1.1",
     scheduler: options.startScheduler === false ? "disabled" : "ready",
     now: new Date().toISOString(),
   }));

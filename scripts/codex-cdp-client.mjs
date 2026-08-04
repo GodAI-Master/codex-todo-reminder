@@ -8,7 +8,7 @@ export async function listCodexTargets(origin) {
     && target.webSocketDebuggerUrl);
 }
 
-export async function evaluate(target, expression) {
+export async function evaluate(target, expression, options = {}) {
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("CDP connection timed out")), 5_000);
@@ -17,7 +17,7 @@ export async function evaluate(target, expression) {
   });
   const id = 1;
   const result = await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("CDP evaluation timed out")), 8_000);
+    const timeout = setTimeout(() => reject(new Error("CDP evaluation timed out")), options.timeoutMs ?? 8_000);
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(String(event.data));
       if (message.id !== id) return;

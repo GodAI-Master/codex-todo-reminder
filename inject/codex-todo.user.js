@@ -1,9 +1,10 @@
 (() => {
   "use strict";
-  const VERSION = "0.1.0";
+  const VERSION = "0.1.1";
   const SOURCE_HASH = String(window.__CODEX_TODO_SOURCE_HASH__ || VERSION);
   const SENTINEL = "__CODEX_TODO_PANEL__";
   const ENTRY_ID = "codex-todo-reminder-entry";
+  const TASKBOARD_ENTRY_ID = "codex-taskboard-entry";
   const PAGE_ID = "codex-todo-reminder-page";
   const FRAME_ID = "codex-todo-reminder-frame";
   const STATUS_ID = "codex-todo-reminder-status";
@@ -121,7 +122,9 @@
     const reference = findReferenceButton();
     if (!reference?.parentElement) return;
     if (!entry) entry = createEntry(reference);
-    if (entry.parentElement !== reference.parentElement || entry.previousElementSibling !== reference) reference.after(entry);
+    const taskboardEntry = document.getElementById(TASKBOARD_ENTRY_ID);
+    const anchor = taskboardEntry?.parentElement === reference.parentElement ? taskboardEntry : reference;
+    if (entry.parentElement !== anchor.parentElement || entry.previousElementSibling !== anchor) anchor.after(entry);
     if (active) entry.setAttribute("aria-current", "page");
     else entry.removeAttribute("aria-current");
   }
