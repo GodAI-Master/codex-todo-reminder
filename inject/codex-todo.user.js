@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const VERSION = "0.1.1";
+  const VERSION = "0.1.2";
   const SOURCE_HASH = String(window.__CODEX_TODO_SOURCE_HASH__ || VERSION);
   const SENTINEL = "__CODEX_TODO_PANEL__";
   const ENTRY_ID = "codex-todo-reminder-entry";

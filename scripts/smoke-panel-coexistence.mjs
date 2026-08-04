@@ -38,6 +38,13 @@ try {
   await todoEntry.click();
   await page.waitForTimeout(350);
   const todoState = await panelState("codex-todo-reminder-page", "codex-todo-reminder-frame", "codex-todo-reminder-entry");
+  const todoFrameHandle = await page.locator("#codex-todo-reminder-frame").elementHandle();
+  const todoContentFrame = await todoFrameHandle?.contentFrame();
+  const todoContent = todoContentFrame ? {
+    url: todoContentFrame.url().replace(/#.*$/, "#token=hidden"),
+    title: await todoContentFrame.title().catch(() => ""),
+    bodyText: (await todoContentFrame.locator("body").innerText().catch(() => "")).slice(0, 240),
+  } : null;
   const taskboardAfterTodo = await panelState("codex-taskboard-page", "codex-taskboard-frame", "codex-taskboard-entry");
   const todoOpened = todoState.open;
   const taskboardClosed = !taskboardAfterTodo.open;
@@ -50,13 +57,16 @@ try {
   const todoClosed = !todoAfterTaskboard.open;
 
   const report = {
-    ok: taskboardOpened && todoOpened && taskboardClosed && taskboardReopened && todoClosed,
+    ok: taskboardOpened && todoOpened && taskboardClosed && taskboardReopened && todoClosed
+      && Boolean(todoContent?.url.startsWith("http://127.0.0.1:47831/panel/"))
+      && !todoContent?.bodyText.includes("该内容被屏蔽了"),
     taskboardOpened,
     todoOpened,
     taskboardClosed,
     taskboardReopened,
     todoClosed,
     todoState,
+    todoContent,
     firstTaskboardState,
     finalTaskboardState,
   };

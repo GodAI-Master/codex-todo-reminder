@@ -1,6 +1,6 @@
 {
   "name": "codex-todo-reminder",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Standalone local todo reminders embedded in Codex Desktop",
   "type": "module",
   "private": false,
