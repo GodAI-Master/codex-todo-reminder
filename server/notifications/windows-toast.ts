@@ -1,17 +1,18 @@
-import nodeNotifier from "node-notifier";
+import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { ReminderNotifier, ReminderNotification } from "./notifier.js";
-
-export type ToastAction =
-  | { action: "complete" }
-  | { action: "snooze"; minutes: number }
-  | { action: "open" };
 
 type ToastSource = {
   todo: Pick<ReminderNotification["todo"], "id" | "displayId" | "title" | "dueAtUtc">;
   occurrenceId: string;
   missed?: boolean;
 };
+
+function actionUri(action: "open" | "complete" | "snooze", todoId: string, minutes?: number): string {
+  return `codex-todo-reminder://${action}/${encodeURIComponent(todoId)}${minutes ? `?minutes=${minutes}` : ""}`;
+}
 
 export function buildToastOptions(source: ToastSource) {
   const due = source.todo.dueAtUtc
@@ -22,45 +23,49 @@ export function buildToastOptions(source: ToastSource) {
     title: `待办任务 · ${source.todo.displayId}`,
     message: `${context} · ${source.todo.title}`,
     appID: "CodexTodoReminder",
-    sound: true,
-    wait: true,
-    timeout: 30,
-    actions: ["完成", "10 分钟后", "1 小时后"],
+    openUri: actionUri("open", source.todo.id),
+    completeUri: actionUri("complete", source.todo.id),
+    snoozeTenUri: actionUri("snooze", source.todo.id, 10),
+    snoozeSixtyUri: actionUri("snooze", source.todo.id, 60),
   };
 }
 
-export function mapToastAction(response: string): ToastAction {
-  if (response === "完成") return { action: "complete" };
-  if (response === "10 分钟后") return { action: "snooze", minutes: 10 };
-  if (response === "1 小时后") return { action: "snooze", minutes: 60 };
-  return { action: "open" };
+function notificationScript(): string {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const projectRoot = currentDir.includes(`${path.sep}dist${path.sep}`)
+    ? path.resolve(currentDir, "../../..")
+    : path.resolve(currentDir, "../..");
+  return path.join(projectRoot, "scripts", "show-todo-notification.ps1");
 }
 
 export class WindowsToastNotifier implements ReminderNotifier {
-  constructor(
-    private readonly onAction?: (notification: ReminderNotification, action: ToastAction) => void | Promise<void>,
-  ) {}
-
   async send(notification: ReminderNotification): Promise<void> {
-    const WindowsToaster = nodeNotifier.WindowsToaster as unknown as new (options: { withFallback: boolean }) => {
-      notify(options: object, callback: (error: Error | null, response: string) => void): void;
-    };
-    const toaster = new WindowsToaster({ withFallback: false });
+    const options = buildToastOptions({
+      todo: notification.todo,
+      occurrenceId: notification.occurrence.id,
+      missed: notification.missed,
+    });
     await new Promise<void>((resolve, reject) => {
-      let settled = false;
-      toaster.notify(buildToastOptions({
-        todo: notification.todo,
-        occurrenceId: notification.occurrence.id,
-        missed: notification.missed,
-      }), (error, response) => {
-        if (error && !settled) { settled = true; reject(error); return; }
-        if (this.onAction) void this.onAction(notification, mapToastAction(response));
-      });
-      setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      }, 250);
+      const child = spawn("powershell.exe", [
+        "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass",
+        "-File", notificationScript(),
+        "-AppId", options.appID,
+        "-Title", options.title,
+        "-Message", options.message,
+        "-OpenUri", options.openUri,
+        "-CompleteLabel", "完成",
+        "-SnoozeTenLabel", "10 分钟后",
+        "-SnoozeSixtyLabel", "1 小时后",
+        "-CompleteUri", options.completeUri,
+        "-SnoozeTenUri", options.snoozeTenUri,
+        "-SnoozeSixtyUri", options.snoozeSixtyUri,
+      ], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
+      let errorOutput = "";
+      child.stderr?.on("data", (chunk) => { errorOutput += String(chunk); });
+      child.once("error", reject);
+      child.once("close", (code) => code === 0
+        ? resolve()
+        : reject(new Error(errorOutput.trim() || `Windows notification exited with code ${code}`)));
     });
   }
 }

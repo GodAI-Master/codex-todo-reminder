@@ -5,6 +5,7 @@ $supervisor = Join-Path $PSScriptRoot "codex-todo-supervisor-windows.ps1"
 
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $taskName -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath "HKCU:\Software\Classes\codex-todo-reminder" -Recurse -Force -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process | Where-Object {
   $_.ProcessId -ne $PID -and $_.CommandLine -and (
     ($_.Name -eq "node.exe" -and $_.CommandLine -like "*$projectRoot*") -or

@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { buildToastOptions, mapToastAction } from "../../server/notifications/windows-toast.js";
+import { buildToastOptions } from "../../server/notifications/windows-toast.js";
 
 describe("Windows toast", () => {
   it("builds an actionable local reminder", () => {
@@ -18,14 +18,10 @@ describe("Windows toast", () => {
       title: "待办任务 · TODO-0001",
       message: "现在提醒 · 检查发布",
       appID: "CodexTodoReminder",
-      wait: true,
+      completeUri: "codex-todo-reminder://complete/2f29209c-3f11-42b5-adb2-f415ef50242f",
+      snoozeTenUri: "codex-todo-reminder://snooze/2f29209c-3f11-42b5-adb2-f415ef50242f?minutes=10",
+      snoozeSixtyUri: "codex-todo-reminder://snooze/2f29209c-3f11-42b5-adb2-f415ef50242f?minutes=60",
     });
-    expect(options.actions).toEqual(["完成", "10 分钟后", "1 小时后"]);
-  });
-
-  it("maps only supported notification actions", () => {
-    expect(mapToastAction("完成")).toEqual({ action: "complete" });
-    expect(mapToastAction("10 分钟后")).toEqual({ action: "snooze", minutes: 10 });
-    expect(mapToastAction("unknown")).toEqual({ action: "open" });
+    expect(options.openUri).toContain("codex-todo-reminder://open/");
   });
 });

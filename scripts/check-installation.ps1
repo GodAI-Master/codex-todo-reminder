@@ -13,6 +13,7 @@ $result = [ordered]@{
   authReady = Test-Path -LiteralPath (Join-Path $localRoot "config\auth.json")
   skillReady = Test-Path -LiteralPath (Join-Path $env:USERPROFILE ".codex\skills\manage-todos\SKILL.md")
   databaseReady = Test-Path -LiteralPath (Join-Path $localRoot "data\todo.db")
+  actionProtocolReady = $null -ne (Get-Item "Registry::HKEY_CURRENT_USER\Software\Classes\codex-todo-reminder\shell\open\command")
 }
 $result | ConvertTo-Json
 if (@($result.Values | Where-Object { $_ -ne $true }).Count -gt 0) { exit 1 }

@@ -1,27 +1,23 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import { existsSync } from "node:fs";
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveConfig, type ConfigOverrides } from "./config.js";
 import { createDatabase } from "./db/database.js";
-import { WindowsToastNotifier, type ToastAction } from "./notifications/windows-toast.js";
-import { TodoRepository } from "./repositories/todo-repository.js";
+import { WindowsToastNotifier } from "./notifications/windows-toast.js";
 import { registerErrorHandler } from "./routes/errors.js";
 import { registerEventRoutes } from "./routes/events.js";
 import { registerListRoutes } from "./routes/lists.js";
 import { registerTodoRoutes } from "./routes/todos.js";
 import { registerViewRoutes } from "./routes/views.js";
-import { OccurrenceService } from "./services/occurrence-service.js";
 import { EventBus } from "./services/event-bus.js";
 import { ReminderScheduler } from "./services/reminder-scheduler.js";
 import { loadOrCreateLocalAuth, tokenMatches } from "./security/local-auth.js";
 import { isTrustedOrigin } from "./security/origin-policy.js";
 import { ApiError } from "./routes/errors.js";
 import { registerDataRoutes } from "./routes/data-management.js";
-import { completeTodo, snoozeTodo } from "./services/todo-actions.js";
 
 export type BuildAppOptions = ConfigOverrides & {
   startScheduler?: boolean;
@@ -64,9 +60,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const backups = registerDataRoutes(app, database.raw, config, events);
 
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = currentDir.includes(`${path.sep}dist${path.sep}`)
-    ? path.resolve(currentDir, "../..")
-    : path.resolve(currentDir, "..");
   const webRoot = currentDir.includes(`${path.sep}dist${path.sep}`)
     ? path.resolve(currentDir, "../web")
     : path.resolve(currentDir, "../dist/web");
@@ -82,34 +75,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   app.get("/health", async () => ({
     ok: true,
     service: "codex-todo-reminder",
-    version: "0.1.3",
+    version: "0.1.4",
     scheduler: options.startScheduler === false ? "disabled" : "ready",
     now: new Date().toISOString(),
   }));
 
   if (options.startScheduler !== false) {
-    const actionHandler = async (
-      notification: Parameters<WindowsToastNotifier["send"]>[0],
-      action: ToastAction,
-    ) => {
-      if (action.action === "complete") {
-        completeTodo(database.raw, notification.todo.id, events);
-      } else if (action.action === "snooze") {
-        snoozeTodo(database.raw, notification.todo.id, action.minutes, events);
-      } else {
-        const launcher = path.join(projectRoot, "scripts", "start-codex-todo-windows.ps1");
-        const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", launcher], {
-          cwd: projectRoot,
-          detached: true,
-          windowsHide: true,
-          stdio: "ignore",
-        });
-        child.unref();
-      }
-    };
     const scheduler = new ReminderScheduler({
       database: database.raw,
-      notifier: new WindowsToastNotifier(actionHandler),
+      notifier: new WindowsToastNotifier(),
     });
     scheduler.start();
     app.addHook("onClose", async () => scheduler.stop());

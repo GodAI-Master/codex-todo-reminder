@@ -33,6 +33,10 @@ export function registerErrorHandler(app: FastifyInstance): void {
       return reply.code(404).send({ error: { code: "NOT_FOUND", message: caught.message } });
     }
     app.log.error(caught);
-    return reply.code(500).send({ error: { code: "INTERNAL_ERROR", message: "服务暂时不可用" } });
+    return reply.code(500).send({ error: {
+      code: "INTERNAL_ERROR",
+      message: "服务暂时不可用",
+      ...(process.env.CODEX_TODO_DIAGNOSTICS === "1" ? { details: caught.message } : {}),
+    } });
   });
 }
