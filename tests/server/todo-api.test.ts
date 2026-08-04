@@ -82,5 +82,7 @@ describe("todo API", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json().snoozedUntilUtc).toBe("2026-08-05T06:40:00.000Z");
+    expect((await instance.inject({ method: "GET", url: `/api/todos/${id}` })).json().reminderAtUtc)
+      .toBe("2026-08-05T06:40:00.000Z");
   });
 });

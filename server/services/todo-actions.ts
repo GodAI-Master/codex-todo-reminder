@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Todo } from "../domain/todo.js";
 import { TodoRepository } from "../repositories/todo-repository.js";
 import type { EventBus } from "./event-bus.js";
-import { OccurrenceService } from "./occurrence-service.js";
+import { OccurrenceService, type Occurrence } from "./occurrence-service.js";
 
 export function completeTodo(database: DatabaseSync, reference: string, events?: EventBus): Todo {
   const todos = new TodoRepository(database);
@@ -30,12 +30,12 @@ export function completeTodo(database: DatabaseSync, reference: string, events?:
   return completed;
 }
 
-export function snoozeTodo(database: DatabaseSync, reference: string, minutes: number, events?: EventBus): void {
+export function snoozeTodo(database: DatabaseSync, reference: string, minutes: number, events?: EventBus, now = new Date()): Occurrence {
   const todos = new TodoRepository(database);
   const todo = todos.getRequiredByReference(reference);
-  new OccurrenceService(database).snoozeForTodo(
-    todo.id,
-    new Date(Date.now() + minutes * 60_000).toISOString(),
-  );
+  const snoozedUntilUtc = new Date(now.getTime() + minutes * 60_000).toISOString();
+  const occurrence = new OccurrenceService(database).snoozeForTodo(todo.id, snoozedUntilUtc);
+  if (!todo.recurrenceRule) todos.update(todo.id, { reminderAtUtc: snoozedUntilUtc });
   events?.emit({ type: "todo.changed", id: todo.id });
+  return occurrence;
 }

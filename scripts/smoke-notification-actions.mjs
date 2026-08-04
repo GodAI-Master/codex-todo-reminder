@@ -68,14 +68,18 @@ try {
   const database = new DatabaseSync(path.join(dataDir, "data", "todo.db"));
   const occurrence = database.prepare("SELECT state, snoozed_until_utc FROM occurrences WHERE todo_id = ?").get(snoozedTodo.id);
   database.close();
+  const snoozedResponse = await fetch(`${baseUrl}/api/todos/${snoozedTodo.id}`, { headers });
+  const snoozedTask = await snoozedResponse.json();
   const snoozeMinutes = Math.round((Date.parse(occurrence.snoozed_until_utc) - beforeSnooze) / 60_000);
   const log = await readFile(path.join(dataDir, "logs", "notification-actions.log"), "utf8");
   const report = {
     ok: completed.status === "completed" && occurrence.state === "snoozed" && snoozeMinutes === 10
+      && snoozedTask.reminderAtUtc === occurrence.snoozed_until_utc
       && log.includes("success action=complete") && log.includes("success action=snooze"),
     completedStatus: completed.status,
     snoozedState: occurrence.state,
     snoozeMinutes,
+    reminderTimeUpdated: snoozedTask.reminderAtUtc === occurrence.snoozed_until_utc,
     actionLogRecorded: log.includes("success action=complete") && log.includes("success action=snooze"),
   };
   console.log(JSON.stringify(report, null, 2));

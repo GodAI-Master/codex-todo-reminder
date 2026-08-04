@@ -32,14 +32,17 @@ try {
     $log = Get-Content -Raw -LiteralPath (Join-Path $localRoot "logs\notification-actions.log") -ErrorAction SilentlyContinue
     $matched = $log -match "success action=snooze todo=$([regex]::Escape($snoozeTodo.id)) minutes=10"
   } while (-not $matched -and (Get-Date) -lt $deadline)
+  $snoozedCurrent = Invoke-RestMethod -Uri "$baseUrl/api/todos/$($snoozeTodo.id)" -Headers $headers
+  $reminderMinutes = [math]::Round(([DateTime]::Parse($snoozedCurrent.reminderAtUtc).ToUniversalTime() - (Get-Date).ToUniversalTime()).TotalMinutes)
 
   $report = [ordered]@{
     completeStatus = $current.status
     snoozeActionRecorded = $matched
+    reminderMinutes = $reminderMinutes
     protocolUsesSilentHandler = $protocol -like "*wscript.exe*handle-todo-action.vbs*"
   }
   $report | ConvertTo-Json -Compress
-  if ($report.Values -contains $false -or $current.status -ne "completed") { throw "Live notification protocol test failed." }
+  if ($report.Values -contains $false -or $current.status -ne "completed" -or $reminderMinutes -ne 10) { throw "Live notification protocol test failed." }
 } finally {
   foreach ($id in $created) {
     try {

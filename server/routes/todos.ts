@@ -5,7 +5,7 @@ import { TodoRepository } from "../repositories/todo-repository.js";
 import { OccurrenceService } from "../services/occurrence-service.js";
 import { createTodoSchema, normalizeCreateInput, normalizeUpdateInput, snoozeSchema, updateTodoSchema } from "../schemas/todo-schema.js";
 import type { EventBus } from "../services/event-bus.js";
-import { completeTodo } from "../services/todo-actions.js";
+import { completeTodo, snoozeTodo } from "../services/todo-actions.js";
 
 function idParam(request: { params: unknown }): string {
   return (request.params as { id: string }).id;
@@ -52,11 +52,8 @@ export function registerTodoRoutes(
 
   app.post("/api/todos/:id/snooze", async (request) => {
     const input = snoozeSchema.parse(request.body);
-    const id = todos.getRequiredByReference(idParam(request)).id;
     const now = new Date(input.now ?? Date.now());
-    const snoozed = occurrences.snoozeForTodo(id, new Date(now.getTime() + input.minutes * 60_000).toISOString());
-    events?.emit({ type: "todo.changed", id });
-    return snoozed;
+    return snoozeTodo(database, idParam(request), input.minutes, events, now);
   });
 
   app.delete("/api/todos/:id", async (request, reply) => {
